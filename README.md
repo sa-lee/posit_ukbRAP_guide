@@ -5,6 +5,9 @@
 - Installing packages and getting bearings on where things are located
 - Setting up renv and Rstudio project
 - Linking your github credentials / cloning repository
+  - set up GITHUB PAT on github
+  - install credentials + gert to set the PAT
+  - clone repository and
 - Adding scripts you've already got in 
 - Accessing UKB fields with dx download, where does the data go?
     - alternative approach using spark SQL
