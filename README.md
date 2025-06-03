@@ -1,5 +1,6 @@
 # Tutorial on using Posit Workbench (Rstudio) on UKB RAP
 
+## Overview
 - Setting up an Rstudio / Posit instance
     - cost and time limits
 - Installing packages and getting bearings on where things are located
@@ -7,13 +8,21 @@
 - Linking your github credentials / cloning repository
   - set up GITHUB PAT on github
   - install credentials + gert to set the PAT
-  - clone repository and
-- Adding scripts you've already got in 
-- Accessing UKB fields with dx download, where does the data go?
-    - alternative approach using spark SQL
+  - clone repository and go to project
+  - using renv to restore R packages
+
+- Accessing additional UKB fields with `dx extract_dataset`
+  - Setting up project credentials
+- Adding data you've already got in the project
 - Proteomics workflow example
-    - installing additional projects
+    - installing additional packages
     - basic run through QC steps 
     - 'pQTL' with limma-voom on a PRS covariate adjusting for potential batch effects
 
-- Saving the results back to the cloud 
+- Saving the data/results back to the cloud using `dx upload`
+- backing up work to the project using `dx-backup-folder`
+
+## Useful links and documentation
+
+* [DNAnexus documentation](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/running-analysis-jobs/rstudio)
+* [UKB tutorial repository](https://statics.teams.cdn.office.net/evergreen-assets/safelinks/1/atp-safelinks.html)
