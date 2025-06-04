@@ -14,10 +14,10 @@
 - Accessing additional UKB fields with `dx extract_dataset`
   - Setting up project credentials
 - Adding data you've already got in the project
-- Proteomics workflow example
+- Proteomics workflow example (if time permits)
     - installing additional packages
     - basic run through QC steps 
-    - 'pQTL' with limma-voom on a PRS covariate adjusting for potential batch effects
+    - Association of protein measurements with limma-voom on a PRS covariate adjusting for potential batch effects
 
 - Saving the data/results back to the cloud using `dx upload`
 - backing up work to the project using `dx-backup-folder`

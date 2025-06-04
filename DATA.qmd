@@ -5,3 +5,200 @@ editor: visual
 ---
 
 ## Data access on UKB-RAP
+
+```{r}
+#| label: setup
+library(dplyr)
+library(vroom)
+library(sparklyr)
+library(DBI)
+library(stringr)
+```
+
+### Extracting data via `dx extract_dataset`
+
+We are going to extract the following items and collapse them and join them into a single dataset:
+
+-   [Age at recruitment](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=21022) (Field: 21022)
+-   [Genetic Sex](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=22001) (Field: 22001)
+-   [Ever smoked](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=20160) (Field: 20160)
+-   [PRS for Age related Macular Degeneration](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=26205) (Field: 26205)
+
+As well as proteomics assay metadata:
+
+-   [Data field 30900](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30900) - Number of proteins measured
+
+-   [Data field 30901](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30901) - Plate used for sample run
+
+-   [Data field 30902](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30902) - Well used for sample run
+
+For all of these fields we will grab results from instance 0 which is the measurements at baseline.
+
+First, we have extract the project id and record id to use the table exporter
+
+``` r
+# Project_id
+project_id <- system("dx env", intern = TRUE)
+project_id <- project_id[str_detect(project_id, "project")]
+project_id <- str_replace(project_id, ".*project", "project")
+
+# Record_id
+record_id <- system("dx describe *dataset | grep  record- | awk -F ' ' '{print $2}' | head -n 1" , intern = TRUE)
+
+# Project_record_id
+project_record_id <- paste0(project_id, ":", record_id)
+```
+
+There are various ways to discover what the field names are called and to extract them. One way is to extract the data dictionary for the project:
+
+```{r}
+#| eval: false
+system(glue("dx extract_dataset {project_record_id}.dataset -ddd --delimiter ','"))
+```
+
+And then look up the fields you are interested in. Since we have the field numbers already we can extract everything programmatically as follows:
+
+```{r}
+field_ids <- c(
+"eid",
+"p21022",  
+"p22001", 
+"p20160_i0",  
+"p26205", 
+"p30900_i0", 
+"p30902_i0")
+field_names <- c("eid", "age", "sex", "ever_smoked_at_baseline", 
+                 "prs_amd", "num_proteins_measured", "well_used")
+field_entities <- str_c("particpant.", unname(field_ids), collapse = ",")
+extract_dataset_cmd <- glue("dx extract_dataset {project_record_id} --fields  {field_entities} --o 'pheno_data.csv'")
+system(extract_dataset_cmd)
+```
+
+Now we can read it back into R with the following:
+
+```{r}
+pheno_data <- vroom("pheno_data.csv", col_names = field_names)
+pheno_data
+```
+
+## Extracting data via Spark
+
+If there are more than 30 entities you want to extract, DNANexus recommends connecting to their spark cluster. Here's how we do that in R:
+
+``` r
+# Connect to master node to orchestrates the analysis in spark
+port <- Sys.getenv("SPARK_MASTER_PORT")
+master <- paste("spark://master:", port, sep = "")
+sc <- spark_connect(master)
+
+# Paths to database
+database_path <- system("dx find data --class database", intern =TRUE)
+app_substring <- na.omit(str_extract(database_path, '(app\\d+_\\d+)'))
+database_substring <- str_extract(database_path[str_detect(database_path, app_substring)], 'database-([A-Za-z0-9]+)') %>% tolower()  %>% str_replace("database-", "database_")
+database <- paste0(database_substring, "__", app_substring)
+```
+
+``` r
+# Olink tables within database
+tables <- DBI::dbGetQuery(sc, paste0("SHOW TABLES IN ", database))
+tables %>%
+    filter(str_detect(tableName, "olink")) %>%
+    pull(tableName)
+```
+
+``` r
+# Instance 0
+table_dataframes_i0 <- replicate(12, data.frame(matrix(ncol = 0, nrow = 0)), simplify = FALSE)
+
+# Loop through each table name
+for (i in 1:12) {
+  # Construct the table name
+  table_name <- paste0("olink_instance_0_00", sprintf("%02d", i))
+
+  # Construct the SQL query
+  query <- paste0("SELECT * FROM ", database, ".", table_name)
+
+  # Execute the query and store the result in a dataframe
+  table_dataframes_i0[[i]] <- sdf_sql(sc, query)
+}
+
+# Pivot long
+instance_0_sdf <- reduce(table_dataframes_i0, left_join, by = "eid") %>%
+  mutate(ins_index = 0) %>%
+  pivot_longer(cols = -c(eid, ins_index), names_to = "protein_id", values_to = "result") %>%
+  na.omit()
+```
+
+### Extracting data already in the project
+
+Assay-level results are also provided as downloadable showcase resources. These are generic tab-separated datasets and are available via the resources section in [Category 1839](https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1839), but in our case we have already uploaded them to our project.
+
+#### Assay
+
+Provides the lookup between an assay, its respective UniProt ID and the Olink Explore panel in which it is categorised.
+
+``` r
+# Assay
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_assay.dat")
+olink_assay <- fread("olink_assay.dat") %>% mutate(Assay = tolower(Assay))
+olink_assay_sdf <- sparklyr::copy_to(sc, olink_assay, overwrite = TRUE)
+```
+
+### Assay version
+
+Provides the version number for each assay per panel lot number.
+
+``` r
+# Assay version
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_assay_version.dat")
+olink_assay_version <- fread("olink_assay_version.dat") %>% mutate(Assay = tolower(Assay))
+olink_assay_version_sdf <- sparklyr::copy_to(sc, olink_assay_version, overwrite = TRUE)
+```
+
+#### Batch number
+
+Provides the shipment batch number for each plate ID, allowing for correction of potential batch processing effects.
+
+``` r
+# Batch number
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_batch_number.dat")
+olink_batch_number <- fread("olink_batch_number.dat")
+olink_batch_number_sdf <- sparklyr::copy_to(sc, olink_batch_number, overwrite = TRUE)
+```
+
+#### Limit of detection
+
+Provides the instance-level limit of detection for each assay per shipment plate, allowing for filtering of sample results based on target protein detectability.
+
+``` r
+# Limit of detection
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_limit_of_detection.dat")
+olink_limit_of_detection <- fread("olink_limit_of_detection.dat") %>% mutate(Assay = tolower(Assay))
+olink_limit_of_detection_sdf <- sparklyr::copy_to(sc, olink_limit_of_detection, overwrite = TRUE)
+```
+
+#### Panel lot number
+
+Provides the processing lot number per assay panel within each shipment batch.
+
+``` r
+# Panel lot number
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_panel_lot_number.dat")
+olink_panel_lot_number <- fread("olink_panel_lot_number.dat")
+olink_panel_lot_number_sdf <- sparklyr::copy_to(sc, olink_panel_lot_number, overwrite = TRUE)
+```
+
+#### Processing start date
+
+Provides the processing date for each shipment plate, broken down by assay panel.
+
+``` r
+# Processing start date
+system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_processing_start_date.dat")
+olink_processing_start_date <- fread("olink_processing_start_date.dat")
+olink_processing_start_date_sdf <- sparklyr::copy_to(sc, olink_processing_start_date, overwrite = TRUE)
+```
+
+### Join data
+
+Join data fields, tables and resources and then convert a SummarizedExperiment?
