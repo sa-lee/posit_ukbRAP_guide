@@ -95,8 +95,7 @@ pheno_data
 
 ## Extracting data via Spark
 
-If there are more than 30 entities you want to extract, DNANexus recommends connecting to their spark cluster, however the Rstudio doesn't connect to the spark cluster. This is left for
-posterity, or if you choose to try these notebooks in the Jupyter kernel.
+If there are more than 30 entities you want to extract, DNANexus recommends connecting to their spark cluster, however the Rstudio doesn't connect to the spark cluster. This is left for posterity, or if you choose to try these notebooks in the Jupyter kernel.
 
 ```{r}
 #| label: spark-setup
@@ -141,79 +140,76 @@ instance_0_sdf <- reduce(table_dataframes_i0, left_join, by = "eid") %>%
 
 ### Extracting data already in the project
 
-There are two approaches to doing this either via
-`dx download` or through reading data directly via the mounted volume. `dx download`
-will save a local copy to your Rstudio working directory, so the paths required
-change depending on how you approach this.
+There are two approaches to doing this either via `dx download` or through reading data directly via the mounted volume. `dx download` will save a local copy to your Rstudio working directory, so the paths required change depending on how you approach this.
 
-Assay-level results are also provided as downloadable showcase resources. These are generic tab-separated datasets and are available via the resources section in [Category 1839](https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1839), but in our case we have already uploaded them to our project.
-
-#### Assay
-
-Provides the lookup between an assay, its respective UniProt ID and the Olink Explore panel in which it is categorised.
-
-``` r
-# Assay
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_assay.dat")
-olink_assay <- fread("olink_assay.dat") %>% mutate(Assay = tolower(Assay))
-olink_assay_sdf <- sparklyr::copy_to(sc, olink_assay, overwrite = TRUE)
+```{r}
+#| eval: false
+dir("/mnt/project/proteomics")
 ```
 
-### Assay version
+Or using `dx download` which will we use now:
 
-Provides the version number for each assay per panel lot number.
-
-``` r
-# Assay version
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_assay_version.dat")
-olink_assay_version <- fread("olink_assay_version.dat") %>% mutate(Assay = tolower(Assay))
-olink_assay_version_sdf <- sparklyr::copy_to(sc, olink_assay_version, overwrite = TRUE)
+```{r}
+system("dx ls proteomics")
+system("dx download -r proteomics/")
 ```
 
-#### Batch number
+We can read in the look up tables for aligning the protein names provided with their UniProt ID (in a helpful file called coding143 \<<https://biobank.ndph.ox.ac.uk/showcase/coding.cgi?id=143>\>)
 
-Provides the shipment batch number for each plate ID, allowing for correction of potential batch processing effects.
-
-``` r
-# Batch number
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_batch_number.dat")
-olink_batch_number <- fread("olink_batch_number.dat")
-olink_batch_number_sdf <- sparklyr::copy_to(sc, olink_batch_number, overwrite = TRUE)
+```{r}
+olink_anno <- vroom("coding143.tsv")
 ```
 
-#### Limit of detection
+Assay-level results are also available. These are generic tab-separated datasets and are available via the resources section in [Category 1839](https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1839), but in our case we have already uploaded them to our project.
 
-Provides the instance-level limit of detection for each assay per shipment plate, allowing for filtering of sample results based on target protein detectability.
+-   **Assay:** Provides the lookup between an assay, its respective UniProt ID and the Olink Explore panel in which it is categorised.
 
-``` r
-# Limit of detection
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_limit_of_detection.dat")
-olink_limit_of_detection <- fread("olink_limit_of_detection.dat") %>% mutate(Assay = tolower(Assay))
-olink_limit_of_detection_sdf <- sparklyr::copy_to(sc, olink_limit_of_detection, overwrite = TRUE)
-```
+-   **Assay version number:** Provides the version number for each assay per panel lot number.
 
-#### Panel lot number
+-   **Batch number:** Provides the shipment batch number for each plate ID, allowing for correction of potential batch processing effects.
 
-Provides the processing lot number per assay panel within each shipment batch.
+-   **Limit of detection**: Provides the instance-level limit of detection for each assay per shipment plate, allowing for filtering of sample results based on target protein detectability.
 
-``` r
-# Panel lot number
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_panel_lot_number.dat")
-olink_panel_lot_number <- fread("olink_panel_lot_number.dat")
-olink_panel_lot_number_sdf <- sparklyr::copy_to(sc, olink_panel_lot_number, overwrite = TRUE)
-```
+-   **Panel lot number** :Provides the processing lot number per assay panel within each shipment batch.
 
-#### Processing start date
-
-Provides the processing date for each shipment plate, broken down by assay panel.
+-   **Processing start date**: Provides the processing date for each shipment plate, broken down by assay panel.
 
 ``` r
-# Processing start date
-system(" wget  -nd  biobank.ndph.ox.ac.uk/ukb/ukb/auxdata/olink_processing_start_date.dat")
-olink_processing_start_date <- fread("olink_processing_start_date.dat")
-olink_processing_start_date_sdf <- sparklyr::copy_to(sc, olink_processing_start_date, overwrite = TRUE)
+olink_assay <- vroom("olink_assay.dat") %>% 
+  mutate(Assay = tolower(Assay))
+olink_assay_version <- vroom("olink_assay_version.dat") %>% 
+  mutate(Assay = tolower(Assay))
+olink_batch_number <- vroom("olink_batch_number.dat")
+olink_limit_of_detection <- vroom("olink_limit_of_detection.dat") %>% 
+  mutate(Assay = tolower(Assay))
+olink_panel_lot_number <- vroom("olink_panel_lot_number.dat")
+olink_processing_start_date <- vroom("olink_processing_start_date.dat")
 ```
 
-### Join data
+Now let's finally read in the first instance of olink assay which was the baseline assessment, there are two more sets of data corresponding imaging visits.
 
-Join data fields, tables and resources and then convert a SummarizedExperiment?
+```{r}
+olink_npx_baseline <- vroom("olink_instance_0.csv")
+```
+
+### Join data and save results
+
+There are several approaches we could take here, I'll take the convention of producing a SummarizedExperiment container for the data which would consist of three things:
+
+-   assay data - the protein measurements as rows, samples as columns
+
+-   row data or annotation data - the metadata about the protein i.e. their human readable elements
+
+-   column data or pheno data - the data corresponding to the samples i.e. the phenotype data
+
+Let's prepare the assay data first:
+
+```{r}
+
+```
+
+### Backing up your work
+
+#### Via version control at the console
+
+### Using dx-backup-folder
