@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-## Setting up on UKB RAP  Posit Workbench (Rstudio)
+## Setting up on UKB RAP Posit Workbench (Rstudio)
 
 ### Choosing an instance
 
@@ -55,7 +55,7 @@ I am sure there are probably better ways of doing this but so far I have found t
 
 ```{r}
 #| eval: false
-# install.packages(c("gert", "credentials"))
+install.packages(c("gert", "credentials"))
 credentials::set_github_pat()
 gert::git_config_global_set("user.name", "your-username")
 gert::git_config_global_set("user.email", "your-email")
