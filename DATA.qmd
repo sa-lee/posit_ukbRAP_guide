@@ -116,6 +116,7 @@ tables %>%
 ```
 
 ```{r}
+#| eval: false
 # Instance 0
 table_dataframes_i0 <- replicate(12, data.frame(matrix(ncol = 0, nrow = 0)), simplify = FALSE)
 
@@ -157,7 +158,10 @@ system("dx download -r proteomics/")
 We can read in the look up tables for aligning the protein names provided with their UniProt ID (in a helpful file called coding143 \<<https://biobank.ndph.ox.ac.uk/showcase/coding.cgi?id=143>\>)
 
 ```{r}
-olink_anno <- vroom("coding143.tsv")
+olink_anno <- vroom("proteomics/coding143.tsv") %>% 
+  tidyr::separate(meaning, into = c("symbol", "description"), sep = ";") %>% 
+  mutate(protein_id = coding, 
+         symbol = str_to_lower(symbol))
 ```
 
 Assay-level results are also available. These are generic tab-separated datasets and are available via the resources section in [Category 1839](https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1839), but in our case we have already uploaded them to our project.
@@ -174,22 +178,28 @@ Assay-level results are also available. These are generic tab-separated datasets
 
 -   **Processing start date**: Provides the processing date for each shipment plate, broken down by assay panel.
 
-``` r
-olink_assay <- vroom("olink_assay.dat") %>% 
-  mutate(Assay = tolower(Assay))
-olink_assay_version <- vroom("olink_assay_version.dat") %>% 
-  mutate(Assay = tolower(Assay))
-olink_batch_number <- vroom("olink_batch_number.dat")
-olink_limit_of_detection <- vroom("olink_limit_of_detection.dat") %>% 
-  mutate(Assay = tolower(Assay))
-olink_panel_lot_number <- vroom("olink_panel_lot_number.dat")
-olink_processing_start_date <- vroom("olink_processing_start_date.dat")
+```{r}
+olink_assay <- vroom("proteomics/olink_assay.dat") %>% 
+  mutate(Assay = str_to_lower(Assay))
+
+olink_assay_version <- vroom("proteomics/olink_assay_version.dat") %>% 
+  mutate(Assay = str_to_lower(Assay))
+
+olink_batch_number <- vroom("proteomics/olink_batch_number.dat")
+
+olink_limit_of_detection <- vroom("proteomics/olink_limit_of_detection.dat") %>% 
+  mutate(Assay = str_to_lower(Assay)) %>% 
+  filter(Instance == 0)
+
+olink_panel_lot_number <- vroom("proteomics/olink_panel_lot_number.dat") %>% 
+
+olink_processing_start_date <- vroom("proteomics/olink_processing_start_date.dat")
 ```
 
 Now let's finally read in the first instance of olink assay which was the baseline assessment, there are two more sets of data corresponding imaging visits.
 
 ```{r}
-olink_npx_baseline <- vroom("olink_instance_0.csv")
+olink_npx_baseline <- vroom("proteomics/olink_instance_0.csv")
 ```
 
 ### Join data and save results
