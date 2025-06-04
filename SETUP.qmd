@@ -1,0 +1,65 @@
+---
+title: "Setting up on UKB"
+format: html
+editor: visual
+---
+
+## Setting up on UKB RAP  Posit Workbench (Rstudio)
+
+### Choosing an instance
+
+-   Priority - 'spot' instances used for low-priority tasks, 'on-demand' instances used for higher priority tasks (higher priority = more expensive)
+
+-   Generally can select combinations of hdd/ssd (type of storage on the instance, ssd is faster but more expensive), RAM and number of cores (and whether you want gpus). As expected more of everything costs more.
+
+-   Pay for what you use / the time spent using it, that is an instance with high priority and more compute is more expensive per hour usage. How best to estimate usage? Start small then scale up. As compute cost is calculated by time, best to dry run the analysis on small compute then use more as needed. You won't be able to spend more than £10-15 using the low-priority instances over a couple of days.
+
+### Start up time
+
+In my experience, booting up a juptyer notebook or posit workbench takes about \~ 10 minutes using normal priority, which is a good amount of time to to get a cup of tea or coffee.
+
+### Getting familiar with the directory structure
+
+The home directory of your analysis is isolated from the project directory / the project directory is not writeable from R directly (we will go through how to 'upload' results directly to the project later). Data that is already available on the project can be accessed via:
+
+```{r}
+list.files("/mnt/project/")
+```
+
+You can read files directly from this directory during your analysis session, i.e. things you may have uploaded or data that is already stored in the project. We will explore later how to pull in data from both the TableExporter too and using spark.
+
+### Installing packages
+
+This can be done in the normal way with `install.packages()`, the instances come with certain packages pre-installed like the `tidyverse` already available. You can see what is available by using:
+
+```{r}
+#| eval: false
+
+installed.packages(lib.loc = "~/R/x86_64-pc-linux-gnu-library/4.4/")
+
+```
+
+I would recommend using the `renv` package \<<https://rstudio.github.io/renv/>\> alongside Rstudio projects to set up your analysis, so your entire analysis environment is logged and easy to reproduce.
+
+```{r}
+#| eval: false
+renv::init()
+# renv::init(bioconductor = TRUE ) if you need bioconductor packages
+renv::snapshot() # log the package state of your project
+renv::restore() # retrieve the packages from the lock file
+```
+
+### Version control with git/github
+
+I am sure there are probably better ways of doing this but so far I have found the easiest way to access git repositories from github is to use Personal Access Tokens (PAT) via Developer Settings in Github. (Show them where to go for this). You can then set the token with the `credentials` package and clone the repository with the `gert` package (or use the Rstudio terminal). An alternative way would be to use ssh keys but PATs have the advantage of expiring after a certain time of use.\
+
+```{r}
+#| eval: false
+# install.packages(c("gert", "credentials"))
+credentials::set_github_pat()
+gert::git_config_global_set("user.name", "your-username")
+gert::git_config_global_set("user.email", "your-email")
+gert::git_clone("repository-url")
+```
+
+Once you have set this all up, you are now ready to clone your repo, and then open the Rstudio project.\
