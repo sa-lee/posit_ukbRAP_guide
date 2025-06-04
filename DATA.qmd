@@ -77,10 +77,11 @@ field_ids <- c(
 "p22001", 
 "p20160_i0",  
 "p26205", 
-"p30900_i0", 
+"p30900_i0",
+"p30901_i0",
 "p30902_i0")
 field_names <- c("eid", "age", "sex", "ever_smoked_at_baseline", 
-                 "prs_amd", "num_proteins_measured", "well_used")
+                 "prs_amd", "num_proteins_measured", "plate_used", "well_used")
 field_entities <- str_c("participant.", field_ids, collapse = ",")
 extract_dataset_cmd <- glue("dx extract_dataset {project_record_id} --fields  {field_entities} --o 'pheno_data.csv'")
 system(extract_dataset_cmd)
@@ -212,14 +213,75 @@ There are several approaches we could take here, I'll take the convention of pro
 
 -   column data or pheno data - the data corresponding to the samples i.e. the phenotype data
 
-Let's prepare the assay data first:
+Let's prepare the annotationo data first:
 
 ```{r}
+anno <- olink_anno %>% 
+  left_join(olink_assay, by = c("symbol" = "Assay")) %>% 
+  as.data.frame()
+rownames(anno) <- anno$protein_id
+
+assay_batch_metadata <- 
+  olink_limit_of_detection %>% 
+  left_join(olink_assay, by = "Assay") %>% 
+  left_join(olink_processing_start_date, by = c("PlateID", "Panel")) %>% 
+  left_join(olink_batch_number, by = "PlateID") %>% 
+  left_join(olink_panel_lot_number, by = c("Batch", "Panel")) %>% 
+  left_join(olink_assay_version, by = c("Panel_Lot_Nr", "Assay")) 
+
+col_data <- olink_npx_baseline %>% 
+  select(eid) %>% 
+  left_join(pheno_data, by = "eid") %>% 
+  as.data.frame()
+rownames(col_data) <- col_data$eid
+
+
+assay_data <- olink_npx_baseline %>% 
+  select(-eid) %>% 
+  as.matrix() %>% 
+  t()
+rownames(assay_data) <- anno$protein_id
+colnames(assay_data) <- col_data$eid
+
+```
+
+We could proceed to check / verify that data is properly aligned here but for now we can create the SummarisedExperiment object
+
+```{r}
+library(SummarizedExperiment)
+se_npx <- SummarizedExperiment(
+  assays = list(npx = assay_data), 
+  rowData = anno, 
+  colData = col_data)
+se_npx
 
 ```
 
 ### Backing up your work
 
+#### Saving our result
+
+```{r}
+library(qs)
+qsave(se_npx, "olink_instance_0_se.qs")
+qsave(assay_batch_metadata, "olink_assay_batch_metadata.qs")
+system("dx upload --destination stuart/ *.qs")
+```
+
 #### Via version control at the console
 
+This is mainly for writing out the code use to produce
+
+```{r}
+#| eval: false
+gert::git_add(...)
+gert::git_commit(...)
+gert::git_push(...)
+```
+
 ### Using dx-backup-folder
+
+```{r}
+#| eval: false
+system("dx-backup-folder")
+```
