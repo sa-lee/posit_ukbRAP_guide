@@ -47,6 +47,8 @@ renv::init()
 # renv::init(bioconductor = TRUE ) if you need bioconductor packages
 renv::snapshot() # log the package state of your project
 renv::restore() # retrieve the packages from the lock file
+renv::install() # install packages from the lock file
+renv::use_python() # if you need python dependencies
 ```
 
 ### Version control with git/github

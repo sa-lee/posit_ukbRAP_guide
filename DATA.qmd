@@ -259,7 +259,9 @@ se_npx
 
 ### Backing up your work
 
-#### Saving our result
+#### Saving our results
+
+Let's save our table and SummarizedExperiment for future use, with the `qs` package. Note that this is like saving an 'rds' file, but is less storage intensive.
 
 ```{r}
 library(qs)
@@ -270,7 +272,7 @@ system("dx upload --destination stuart/ *.qs")
 
 #### Via version control at the console
 
-This is mainly for writing out the code use to produce
+This is mainly for versioning the code we have used to produce - make sure you don't commit any of the data you've created!
 
 ```{r}
 #| eval: false
@@ -284,4 +286,6 @@ gert::git_push(...)
 ```{r}
 #| eval: false
 system("dx-backup-folder")
+# restore the folder with
+system("dx-restore-folder")
 ```
