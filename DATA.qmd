@@ -13,6 +13,7 @@ library(vroom)
 library(sparklyr)
 library(DBI)
 library(stringr)
+library(glue)
 ```
 
 ### Extracting data via `dx extract_dataset`
@@ -36,24 +37,35 @@ For all of these fields we will grab results from instance 0 which is the measur
 
 First, we have extract the project id and record id to use the table exporter
 
-``` r
+```{r}
+#| label: project-setup
 # Project_id
 project_id <- system("dx env", intern = TRUE)
 project_id <- project_id[str_detect(project_id, "project")]
 project_id <- str_replace(project_id, ".*project", "project")
 
 # Record_id
-record_id <- system("dx describe *dataset | grep  record- | awk -F ' ' '{print $2}' | head -n 1" , intern = TRUE)
-
+record_id <-"record-GbgbXqjJxYp6jPgKk9v4Gb7q" 
 # Project_record_id
 project_record_id <- paste0(project_id, ":", record_id)
+
+# Paths to database
+database_path <- system("dx find data --class database", intern =TRUE)
+app_substring <- str_extract(database_path, '(app\\d+_\\d+)')
+database_substring <- str_extract(database_path, 'database-([A-Za-z0-9]+)') %>% 
+  str_to_lower()  %>% 
+  str_replace("database-", "database_")
+database <- paste0(database_substring, "__", app_substring)
+
 ```
 
 There are various ways to discover what the field names are called and to extract them. One way is to extract the data dictionary for the project:
 
 ```{r}
 #| eval: false
-system(glue("dx extract_dataset {project_record_id}.dataset -ddd --delimiter ','"))
+# requires pandas
+system("pip install pandas")
+system(glue("dx extract_dataset {app_substring}.dataset -ddd --delimiter ','"))
 ```
 
 And then look up the fields you are interested in. Since we have the field numbers already we can extract everything programmatically as follows:
@@ -69,7 +81,7 @@ field_ids <- c(
 "p30902_i0")
 field_names <- c("eid", "age", "sex", "ever_smoked_at_baseline", 
                  "prs_amd", "num_proteins_measured", "well_used")
-field_entities <- str_c("particpant.", unname(field_ids), collapse = ",")
+field_entities <- str_c("participant.", field_ids, collapse = ",")
 extract_dataset_cmd <- glue("dx extract_dataset {project_record_id} --fields  {field_entities} --o 'pheno_data.csv'")
 system(extract_dataset_cmd)
 ```
@@ -77,28 +89,26 @@ system(extract_dataset_cmd)
 Now we can read it back into R with the following:
 
 ```{r}
-pheno_data <- vroom("pheno_data.csv", col_names = field_names)
+pheno_data <- vroom("pheno_data.csv", col_names = field_names, skip = 1)
 pheno_data
 ```
 
 ## Extracting data via Spark
 
-If there are more than 30 entities you want to extract, DNANexus recommends connecting to their spark cluster. Here's how we do that in R:
+If there are more than 30 entities you want to extract, DNANexus recommends connecting to their spark cluster, however the Rstudio doesn't connect to the spark cluster. This is left for
+posterity, or if you choose to try these notebooks in the Jupyter kernel.
 
-``` r
+```{r}
+#| label: spark-setup
+#| eval: false
 # Connect to master node to orchestrates the analysis in spark
 port <- Sys.getenv("SPARK_MASTER_PORT")
-master <- paste("spark://master:", port, sep = "")
+master <- paste("spark://master:", 8090, sep = "")
 sc <- spark_connect(master)
-
-# Paths to database
-database_path <- system("dx find data --class database", intern =TRUE)
-app_substring <- na.omit(str_extract(database_path, '(app\\d+_\\d+)'))
-database_substring <- str_extract(database_path[str_detect(database_path, app_substring)], 'database-([A-Za-z0-9]+)') %>% tolower()  %>% str_replace("database-", "database_")
-database <- paste0(database_substring, "__", app_substring)
 ```
 
-``` r
+```{r}
+#| eval: false
 # Olink tables within database
 tables <- DBI::dbGetQuery(sc, paste0("SHOW TABLES IN ", database))
 tables %>%
@@ -106,7 +116,7 @@ tables %>%
     pull(tableName)
 ```
 
-``` r
+```{r}
 # Instance 0
 table_dataframes_i0 <- replicate(12, data.frame(matrix(ncol = 0, nrow = 0)), simplify = FALSE)
 
@@ -130,6 +140,11 @@ instance_0_sdf <- reduce(table_dataframes_i0, left_join, by = "eid") %>%
 ```
 
 ### Extracting data already in the project
+
+There are two approaches to doing this either via
+`dx download` or through reading data directly via the mounted volume. `dx download`
+will save a local copy to your Rstudio working directory, so the paths required
+change depending on how you approach this.
 
 Assay-level results are also provided as downloadable showcase resources. These are generic tab-separated datasets and are available via the resources section in [Category 1839](https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1839), but in our case we have already uploaded them to our project.
 
