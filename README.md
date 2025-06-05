@@ -48,7 +48,7 @@
 ## Useful links and documentation
 
 -   [DNAnexus documentation](https://dnanexus.gitbook.io/uk-biobank-rap/working-on-the-research-analysis-platform/running-analysis-jobs/rstudio)
--   [UKB tutorial repository](https://statics.teams.cdn.office.net/evergreen-assets/safelinks/1/atp-safelinks.html)
+-   [UKB tutorial repository](https://github.com/dnanexus/UKB_RAP/tree/main)
   - [UKB Best Practices guide (2023)](https://laderast.github.io/best_practices_dnanexus/)
   - [Extracting phenotypic data on UKB](https://community.ukbiobank.ac.uk/hc/en-gb/articles/26205157055261-Extracting-phenotypic-data)
   - Sng, L.M., Kaphle, A., O’Brien, M.J. et al. Optimizing UK biobank cloud-based research analysis platform to fine-map coronary artery disease loci in whole genome sequencing data. Sci Rep 15, 10335 (2025). https://doi.org/10.1038/s41598-025-95286-2
