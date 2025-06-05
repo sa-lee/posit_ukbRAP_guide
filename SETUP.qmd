@@ -58,10 +58,20 @@ I am sure there are probably better ways of doing this but so far I have found t
 ```{r}
 #| eval: false
 install.packages(c("gert", "credentials"))
+# if you don't use this, you will just be prompted for your PAT when you clone
 credentials::set_github_pat()
 gert::git_config_global_set("user.name", "your-username")
 gert::git_config_global_set("user.email", "your-email")
 gert::git_clone("repository-url")
+```
+
+You can do the same thing from the Rstudio terminal
+
+```{bash}
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+# if you want to store the PAT once you enter it
+git config --global credential.helper store
 ```
 
 Once you have set this all up, you are now ready to clone your repo, and then open the Rstudio project.\
